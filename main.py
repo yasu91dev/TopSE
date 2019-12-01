@@ -20,40 +20,38 @@ class InputString:
 
 
 class File:
-    def __init__(self, fileName, fileType, filePath):
+    def __init__(self, fileName, fileType):
         self.fileName = fileName
-        self.fileType = fileType    # f:File, d:Directory
-        self.filePath = filePath
+        self.fileType = fileType    # f:ファイル, d:ディレクトリ
+        if fileType == "d":
+            self.fileSystem = FileSystem()  # ディレクトリの場合は自身でファイルシステムを持つ
 
     def getFileName(self):
         return self.fileName
 
     def getFileType(self):
         return self.fileType
-    
-    def getFilePath(self):
-        return self.filePath
 
 
-class FileSystem:
+class FileSystem:   # ディレクトリ相当
     def __init__(self):
         self.fileList = []
 
     def searchFile(self, fileName):
         if( len(self.fileList) == 0 ):
-            return False
+            return None
         else:
             for n in self.fileList:
                 if(n.getFileName() == fileName):
-                    return True
+                    return n
                 else:
-                    return False
+                    return None
     
-    def addFile(self, fileName, fileType, filePath):
+    def addFile(self, fileName, fileType):
         if "/" in fileName:    # ファイルシステムで使用不可能な文字がfileNameに含まれている場合
             print("")
         else:
-            file = File(fileName, fileType, filePath)
+            file = File(fileName, fileType)
             self.fileList.append(file)
         return
 
@@ -75,7 +73,7 @@ class FileSystem:
 
 class MyShell:
     def __init__(self):
-        self.fs = FileSystem()
+        self.fs = File("/", "d")
         self.wd = "/"   # Workind Directory
     
     def runShell(self):
@@ -91,22 +89,36 @@ class MyShell:
             elif cmd == "touch":
                 i = 1
                 while i < istr.getArgNum():
-                    if(self.fs.searchFile(istr.getArg(i)) == False):
-                        self.fs.addFile(istr.getArg(i), "f", self.wd)
+                    if(self.fs.fileSystem.searchFile(istr.getArg(i)) is None):
+                        self.fs.fileSystem.addFile(istr.getArg(i), "f")
                     i += 1
 
             elif cmd == "ls":
-                self.fs.showFiles()
+                self.fs.fileSystem.showFiles()
 
             elif cmd == "mkdir":
                 i = 1
                 while i < istr.getArgNum():
-                    if(self.fs.searchFile(istr.getArg(i)) == False):
-                        self.fs.addFile(istr.getArg(i), "d", self.wd)
+                    if(self.fs.fileSystem.searchFile(istr.getArg(i)) is None ):
+                        self.fs.fileSystem.addFile(istr.getArg(i), "d")
                     i += 1
 
             elif cmd == "cd":
-                pass
+                if istr.getArgNum() > 2:
+                    print("cd: too many aruguments")
+                elif istr.getArgNum() == 1:
+                    # ルートディレクトリに戻る
+                    print("T.B.D")
+                else:
+                    # たぶん考え方がこれじゃダメなんだと思われる。インタスタンス内にいるインスタンスを返すことはできない？？
+                    directory = self.fs.fileSystem.searchFile(istr.getArg(1))
+                    if not directory:
+                        if directory.getFileType() == "d":
+                            pass
+                        else:
+                            print("cd: " + istr.getArg(1) + ": Not a directory")
+                    else:
+                        print("cd: " + istr.getArg(1) + ": No such file or directory")
 
             elif cmd == "exit":
                 break
