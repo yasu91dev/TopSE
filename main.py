@@ -24,7 +24,7 @@ class File:
         self.fileName = fileName
         self.fileType = fileType    # f:ファイル, d:ディレクトリ
         if fileType == "d":
-            self.fileSystem = FileSystem()  # ディレクトリの場合は自身でファイルシステムを持つ
+            self.fileList = {}
 
     def getFileName(self):
         return self.fileName
@@ -32,33 +32,50 @@ class File:
     def getFileType(self):
         return self.fileType
 
-
-class FileSystem:   # ディレクトリ相当
-    def __init__(self):
-        self.fileList = []
-
-    def searchFile(self, fileName):
-        if( len(self.fileList) == 0 ):
-            return None
+    def searchFile(self, filePath):
+        splitFilePath = filePath.split("/")
+        fileName = splitFilePath[1]
+        if fileName in self.fileList.keys():
+            if self.fileList[fileName].getFileType() == "d":
+                return self.fileList[fileName].searchFile("/" + "/".join(splitFilePath[2:]))
+            else:
+                return self.fileList[fileName] #ファイルが見つかった
         else:
-            for n in self.fileList:
-                if(n.getFileName() == fileName):
-                    return n
-                else:
-                    return None
+            return None #ファイルが見つからなかった
     
-    def addFile(self, fileName, fileType):
-        if "/" in fileName:    # ファイルシステムで使用不可能な文字がfileNameに含まれている場合
-            print("")
+    def searchDirectory(self, filePath):
+        splitFilePath = filePath.split("/")
+        fileName = splitFilePath[1]
+        if splitFilePath[-1] in self.fileList.keys():
+            return self.fileList[splitFilePath[-1]]
+        elif fileName in self.fileList.keys():
+            if self.fileList[fileName].getFileType() == "d":
+                return self.fileList[fileName].searchDirectory("/" + "/".join(splitFilePath[2:]))
+            else:
+                return None #ファイルだった
         else:
-            file = File(fileName, fileType)
-            self.fileList.append(file)
-        return
+            return None #ファイルが見つからなかった
 
-    def showFiles(self):
+    def addFile(self, filePath, fileType):
+        splitFilePath = filePath.split("/")
+        fileName = splitFilePath[1]
+        if fileName in self.fileList.keys():
+            if self.fileList[fileName].getFileType() == "d":
+                return self.fileList[fileName].addFile("/" + "/".join(splitFilePath[2:]), fileType)
+            else:
+                return False
+        else:
+            self.fileList[fileName] = File(fileName, fileType)
+            return True
+    
+    def showFiles(self, filePath):
+        if filePath == "/":
+            findFile = self.fileList
+        else:
+            findFile = self.searchDirectory(filePath)
         fileList = []
 
-        for i in self.fileList:
+        for i in findFile.fileList.values():
             if i.getFileType() == "d":
                 fileList.append(i.getFileName() + "/")
             else:
@@ -74,12 +91,13 @@ class FileSystem:   # ディレクトリ相当
 class MyShell:
     def __init__(self):
         self.fs = File("/", "d")
-        self.wd = "/"   # Workind Directory
+        self.wd = "/"   # Workind Directory(./)
     
     def runShell(self):
         istr = InputString()
         
         while True:
+            print("name@MACHINE " + self.wd)
             istr.getInput()
             cmd = istr.getCmd()
             
@@ -89,18 +107,53 @@ class MyShell:
             elif cmd == "touch":
                 i = 1
                 while i < istr.getArgNum():
-                    if(self.fs.fileSystem.searchFile(istr.getArg(i)) is None):
-                        self.fs.fileSystem.addFile(istr.getArg(i), "f")
+                    if(istr.getArg(i)[0:2] == ".."):
+                        print("..")
+                    elif(istr.getArg(i)[0] == "."):
+                        filePath = istr.getArg(i)
+                        if self.wd == "/":
+                            filePath = filePath.replace(".", "", 1)
+                        else:
+                            filePath = filePath.replace(".", self.wd, 1)
+                    elif(not "/" in istr.getArg(i)):
+                        if self.wd == "/":
+                            filePath = self.wd + istr.getArg(i)
+                        else:
+                            filePath = self.wd + "/" + istr.getArg(i)
+                    else:
+                        filePath = istr.getArg(i)
+
+                    self.fs.addFile(filePath, "f")
                     i += 1
 
             elif cmd == "ls":
-                self.fs.fileSystem.showFiles()
+                filePath = self.wd
+                self.fs.showFiles(filePath)
+                pass
 
             elif cmd == "mkdir":
                 i = 1
                 while i < istr.getArgNum():
-                    if(self.fs.fileSystem.searchFile(istr.getArg(i)) is None ):
-                        self.fs.fileSystem.addFile(istr.getArg(i), "d")
+                    if(istr.getArg(i)[0:2] == ".."):
+                        print("..")
+                    elif(istr.getArg(i)[0] == "."):
+                        filePath = istr.getArg(i)
+                        if self.wd == "/":
+                            filePath = filePath.replace(".", "", 1)
+                        else:
+                            filePath = filePath.replace(".", self.wd, 1)
+                    elif(not "/" in istr.getArg(i)):
+                        if self.wd == "/":
+                            filePath = self.wd + istr.getArg(i)
+                        else:
+                            filePath = self.wd + "/" + istr.getArg(i)
+                    else:
+                        filePath = istr.getArg(i)
+
+                    if(not self.fs.searchFile(filePath)):
+                        self.fs.addFile(filePath, "d")
+                    else:
+                        print("mkdir: cannot create directory ‘" + istr.getArg(i) + "’: File exists")
                     i += 1
 
             elif cmd == "cd":
@@ -108,17 +161,35 @@ class MyShell:
                     print("cd: too many aruguments")
                 elif istr.getArgNum() == 1:
                     # ルートディレクトリに戻る
-                    print("T.B.D")
+                    self.wd = "/"
                 else:
-                    # たぶん考え方がこれじゃダメなんだと思われる。インタスタンス内にいるインスタンスを返すことはできない？？
-                    directory = self.fs.fileSystem.searchFile(istr.getArg(1))
-                    if not directory:
-                        if directory.getFileType() == "d":
-                            pass
+                    i = 1
+                    if(istr.getArg(i)[0:2] == ".."):
+                        print("..")
+                    elif(istr.getArg(i)[0] == "."):
+                        filePath = istr.getArg(i)
+                        if self.wd == "/":
+                            filePath = filePath.replace(".", "", 1)
                         else:
-                            print("cd: " + istr.getArg(1) + ": Not a directory")
+                            filePath = filePath.replace(".", self.wd, 1)
+                    elif(not "/" in istr.getArg(i)):
+                        if self.wd == "/":
+                            filePath = self.wd + istr.getArg(i)
+                        else:
+                            filePath = self.wd + "/" + istr.getArg(i)
                     else:
+                        filePath = istr.getArg(i)
+                    
+                    findFile = self.fs.searchDirectory(filePath)
+                    if not findFile:
                         print("cd: " + istr.getArg(1) + ": No such file or directory")
+                    elif findFile.getFileType == "f":
+                        print("cd: " + istr.getArg(1) + ": Not a directory")
+                    else:
+                        self.wd = filePath
+
+            elif cmd == "pwd":
+                print(self.wd)
 
             elif cmd == "exit":
                 break
@@ -127,6 +198,8 @@ class MyShell:
                 print(cmd + ": command not found")
 
             print("")
+        
+        return
 
 
 if __name__ == "__main__":
